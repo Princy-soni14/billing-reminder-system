@@ -28,3 +28,6 @@ dist-ssr
 .env
 firebase-role-tool/serviceAccountKey.json
 project/serviceAccountKey.json
+
+# local-only server
+server.js
