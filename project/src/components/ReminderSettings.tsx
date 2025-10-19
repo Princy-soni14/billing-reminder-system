@@ -18,14 +18,13 @@ const ReminderSettings: React.FC<ReminderSettingsProps> = ({ company, onUpdateSe
   const intervalRef = useRef<number | null>(null);
 
   // webhook URL - use company.webhookUrl if present, fallback to placeholder
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl || 'https://your-n8n-instance.com/webhook/payment-reminder';
+  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl || 'https://n8n.srv954870.hstgr.cloud/webhook/e012ebe8-18a3-401b-a72a-e4fdeba3395d';
 
   // optional proxy URL (set in env or company). Accepts either:
   // - a base proxy that expects ?url=TARGET (default)
   // - or a string containing "{url}" which will be replaced with encoded target
   // Example env: VITE_PROXY_URL=https://my-proxy.local/proxy or https://my-proxy.local/proxy?token=abc
-  const proxyUrl = '/api/reminder-proxy';
-
+const proxyUrl = "/api/reminder-proxy";
   // helper to build a proxy request URL for a given target
   const buildProxyTarget = (proxyBase: string, target: string) => {
     if (!proxyBase) return null;
