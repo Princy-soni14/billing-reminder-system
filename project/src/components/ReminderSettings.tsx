@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Bell, BellOff, Clock, Mail } from 'lucide-react';
 import { Company } from '../types';
 
@@ -12,6 +12,93 @@ const ReminderSettings: React.FC<ReminderSettingsProps> = ({ company, onUpdateSe
   const [autoRemindersEnabled, setAutoRemindersEnabled] = useState(company.autoRemindersEnabled);
   const [reminderFrequency, setReminderFrequency] = useState(7);
   const [reminderTime, setReminderTime] = useState('09:00');
+
+  // timer refs
+  const timeoutRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
+
+  // webhook URL - use company.webhookUrl if present, fallback to placeholder
+  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl;
+
+
+  // sendReminder: POST to the already-created webhook workflow
+  const sendReminder = async () => {
+    const payload = {
+      companyId: (company as any).id,
+      companyName: (company as any).name,
+      timestamp: new Date().toISOString()
+      // ...add any additional data shape required by your n8n workflow...
+    };
+
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      console.log(`Reminder POST sent to ${webhookUrl} at ${new Date().toISOString()}`, { payload, status: res.status });
+    } catch (err) {
+      console.error('Failed to send reminder POST', err);
+    }
+  };
+
+  // compute next occurrence of reminderTime (today or tomorrow)
+  const getNextOccurrence = (timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(hours, minutes, 0, 0);
+    if (next <= now) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next;
+  };
+
+  // schedule logic: setTimeout for first run, then setInterval for repeating every reminderFrequency days
+  useEffect(() => {
+    // clear any existing timers
+    const clearTimers = () => {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    clearTimers();
+
+    if (!autoRemindersEnabled) {
+      console.log('Auto reminders disabled — timers cleared');
+      return;
+    }
+
+    const next = getNextOccurrence(reminderTime);
+    const now = new Date();
+    const firstDelay = next.getTime() - now.getTime();
+
+    console.log(`Next reminder scheduled at ${next.toString()} (in ${Math.round(firstDelay / 1000)}s)`);
+
+    // schedule first run
+    timeoutRef.current = window.setTimeout(async () => {
+      await sendReminder();
+
+      // after first run, schedule repeating reminders
+      const intervalMs = reminderFrequency * 24 * 60 * 60 * 1000;
+      intervalRef.current = window.setInterval(() => {
+        sendReminder();
+      }, intervalMs);
+
+      timeoutRef.current = null;
+    }, firstDelay);
+
+    // cleanup on dependency change / unmount
+    return () => {
+      clearTimers();
+    };
+  }, [autoRemindersEnabled, reminderTime, reminderFrequency, webhookUrl, company]);
 
   const handleSaveSettings = () => {
     onUpdateSettings({
