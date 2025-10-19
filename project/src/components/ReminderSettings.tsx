@@ -1,218 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Bell, BellOff, Clock, Mail } from 'lucide-react';
-import { Company } from '../types';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-interface ReminderSettingsProps {
-  company: Company;
-  onUpdateSettings: (settings: any) => void;
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
-const ReminderSettings: React.FC<ReminderSettingsProps> = ({ company, onUpdateSettings }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [autoRemindersEnabled, setAutoRemindersEnabled] = useState(company.autoRemindersEnabled);
-  const [reminderFrequency, setReminderFrequency] = useState(7);
-  const [reminderTime, setReminderTime] = useState('09:00');
+  // Your n8n webhook (use env variable for security)
+  const n8nWebhook = process.env.VITE_N8N_WEBHOOK_URL;
+  if (!n8nWebhook) {
+    return res.status(500).json({ error: 'Webhook URL not configured' });
+  }
 
-  // timer refs
-  const timeoutRef = useRef<number | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  try {
+    console.log('Proxy forwarding to n8n:', n8nWebhook);
 
-  // webhook URL - use company.webhookUrl if present, fallback to placeholder
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl || 'https://n8n.srv954870.hstgr.cloud/webhook/e012ebe8-18a3-401b-a72a-e4fdeba3395dhttps://n8n.srv954870.hstgr.cloud/webhook/e012ebe8-18a3-401b-a72a-e4fdeba3395d';
-
-
-  // sendReminder: POST to the already-created webhook workflow
-  const sendReminder = async () => {
-    const payload = {
-      companyId: (company as any).id,
-      companyName: (company as any).name,
-      timestamp: new Date().toISOString()
-      // ...add any additional data shape required by your n8n workflow...
-    };
-
-    try {
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      console.log(`Reminder POST sent to ${webhookUrl} at ${new Date().toISOString()}`, { payload, status: res.status });
-    } catch (err) {
-      console.error('Failed to send reminder POST', err);
-    }
-  };
-
-  // compute next occurrence of reminderTime (today or tomorrow)
-  const getNextOccurrence = (timeStr: string): Date => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const now = new Date();
-    const next = new Date(now);
-    next.setHours(hours, minutes, 0, 0);
-    if (next <= now) {
-      next.setDate(next.getDate() + 1);
-    }
-    return next;
-  };
-
-  // schedule logic: setTimeout for first run, then setInterval for repeating every reminderFrequency days
-  useEffect(() => {
-    // clear any existing timers
-    const clearTimers = () => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-
-    clearTimers();
-
-    if (!autoRemindersEnabled) {
-      console.log('Auto reminders disabled — timers cleared');
-      return;
-    }
-
-    const next = getNextOccurrence(reminderTime);
-    const now = new Date();
-    const firstDelay = next.getTime() - now.getTime();
-
-    console.log(`Next reminder scheduled at ${next.toString()} (in ${Math.round(firstDelay / 1000)}s)`);
-
-    // schedule first run
-    timeoutRef.current = window.setTimeout(async () => {
-      await sendReminder();
-
-      // after first run, schedule repeating reminders
-      const intervalMs = reminderFrequency * 24 * 60 * 60 * 1000;
-      intervalRef.current = window.setInterval(() => {
-        sendReminder();
-      }, intervalMs);
-
-      timeoutRef.current = null;
-    }, firstDelay);
-
-    // cleanup on dependency change / unmount
-    return () => {
-      clearTimers();
-    };
-  }, [autoRemindersEnabled, reminderTime, reminderFrequency, webhookUrl, company]);
-
-  const handleSaveSettings = () => {
-    onUpdateSettings({
-      autoRemindersEnabled,
-      reminderFrequency,
-      reminderTime
+    const n8nRes = await fetch(n8nWebhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
     });
-    setIsExpanded(false);
-  };
 
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Settings className="h-5 w-5 text-gray-600" />
-          <h3 className="text-lg font-semibold text-gray-800">Reminder Settings</h3>
-        </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-blue-600 hover:text-blue-700 transition-colors"
-        >
-          {isExpanded ? 'Hide' : 'Configure'}
-        </button>
-      </div>
-
-      {isExpanded && (
-        <div className="mt-6 space-y-6 border-t pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={autoRemindersEnabled}
-                  onChange={(e) => setAutoRemindersEnabled(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600"
-                />
-                <div className="flex items-center space-x-2">
-                  {autoRemindersEnabled ? (
-                    <Bell className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <BellOff className="h-4 w-4 text-red-600" />
-                  )}
-                  <span className="font-medium text-gray-700">Enable Automatic Reminders</span>
-                </div>
-              </label>
-              <p className="mt-1 text-sm text-gray-600">
-                Automatically send reminders via n8n webhook
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Clock className="inline h-4 w-4 mr-1" />
-                Reminder Frequency (Days)
-              </label>
-              <select
-                value={reminderFrequency}
-                onChange={(e) => setReminderFrequency(parseInt(e.target.value))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                disabled={!autoRemindersEnabled}
-              >
-                <option value={3}>Every 3 days</option>
-                <option value={7}>Every 7 days</option>
-                <option value={14}>Every 14 days</option>
-                <option value={30}>Every 30 days</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Mail className="inline h-4 w-4 mr-1" />
-                Reminder Time
-              </label>
-              <input
-                type="time"
-                value={reminderTime}
-                onChange={(e) => setReminderTime(e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                disabled={!autoRemindersEnabled}
-              />
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleSaveSettings}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Save Settings
-              </button>
-              <button
-                onClick={() => setIsExpanded(false)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h4 className="font-semibold text-yellow-800 mb-2">n8n Webhook Integration</h4>
-            <p className="text-sm text-yellow-700 mb-2">
-              Configure your n8n workflow to receive POST requests at:
-            </p>
-            <code className="block bg-yellow-100 p-2 rounded text-sm font-mono">
-              https://your-n8n-instance.com/webhook/payment-reminder
-            </code>
-            <p className="text-sm text-yellow-700 mt-2">
-              The webhook will receive JSON data with bill details, company information, and email template.
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default ReminderSettings;
+    const text = await n8nRes.text();
+    res.status(n8nRes.status).send(text);
+  } catch (err) {
+    console.error('Proxy error:', err);
+    res.status(500).json({ error: 'Failed to reach n8n' });
+  }
+}
