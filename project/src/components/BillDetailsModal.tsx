@@ -21,7 +21,7 @@ const BillDetailsModal: React.FC<BillDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="modal-container bg-white rounded-lg shadow-xl w-full mx-4 overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-800">Bill Details</h3>
@@ -35,7 +35,7 @@ const BillDetailsModal: React.FC<BillDetailsModalProps> = ({
         </div>
         
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+         <div className="bill-details-grid grid gap-6">
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <FileText className="h-5 w-5 text-blue-600" />

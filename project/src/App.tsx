@@ -90,6 +90,8 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<"dashboard" | "companies">("dashboard");
   const [companyForCC, setCompanyForCC] = useState<Company | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); // ✅ Add missing state
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
 
   // -------------------------------------------------------------
   // 🔥 Firestore Fetch Logic
@@ -376,108 +378,173 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
       <Toaster position="top-right" />
 
       {/* Navbar */}
-      <div className="bg-gradient-to-r from-white to-gray-50 shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-xl shadow-md">
-                <FileSpreadsheet className="h-8 w-8 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                Billing Reminder System
-              </h1>
-            </div>
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-2 px-3 py-1.5 bg-blue-50 rounded-lg">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-gray-700">{user?.email}</span>
-              </div>
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition font-medium"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
+<div className="bg-gradient-to-r from-white to-gray-50 shadow-lg border-b border-gray-200">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    {/* make it wrap and center for mobile */}
+    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+      
+      {/* Left: Logo + Title */}
+      <div className="flex items-center justify-center sm:justify-start space-x-3 w-full sm:w-auto">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-xl shadow-md">
+          <FileSpreadsheet className="h-8 w-8 text-white" />
         </div>
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent text-center sm:text-left">
+          Billing Reminder System
+        </h1>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Navigation Buttons */}
-        <div className="flex items-center space-x-4 mb-6">
-          <button
-            onClick={() => setCurrentView("dashboard")}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              currentView === "dashboard"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setCurrentView("companies")}
-            className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center space-x-2 ${
-              currentView === "companies"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <Building2 className="h-5 w-5" />
-            <span>Companies</span>
-          </button>
-          <button
-            onClick={() => setIsEmailTemplateModalOpen(true)}
-            className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
-          >
-            <Template className="h-4 w-4" />
-            <span>Templates</span>
-          </button>
-          {/* Dropdown for Bulk Upload */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
-            >
-              <Upload className="h-4 w-4" />
-              <span>Bulk Upload</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {isDropdownOpen && (
-              <div className="absolute top-12 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-40 z-50">
-                <button
-                  onClick={() => {
-                    setBulkUploadType("bills");
-                    setIsDropdownOpen(false);
-                    setIsBulkUploadModalOpen(true);
-                  }}
-                  className="block w-full text-left px-2 py-3 hover:bg-gray-100"
-                >
-                  Upload Bills
-                </button>
-                <button
-                  onClick={() => {
-                    setBulkUploadType("companies");
-                    setIsDropdownOpen(false);
-                    setIsBulkUploadModalOpen(true);
-                  }}
-                  className="block w-full text-left px-2 py-3 hover:bg-gray-100"
-                >
-                  Upload Companies
-                </button>
-              </div>
-            )}
-          </div>
+      {/* Right: Email + Logout */}
+      <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-end gap-3 w-full sm:w-auto">
+        <div className="flex items-center space-x-2 px-3 py-1.5 bg-blue-50 rounded-lg w-full sm:w-auto justify-center sm:justify-start">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-xs sm:text-sm font-medium text-gray-700 truncate max-w-[180px] sm:max-w-none">
+            {user?.email}
+          </span>
         </div>
+
+        <button
+          onClick={logout}
+          className="bg-red-600 hover:bg-red-700 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center justify-center space-x-2 transition font-medium w-full sm:w-auto"
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="text-sm sm:text-base">Logout</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+      {/* Main Content */}
+      <div className="main-container max-w-7xl mx-auto py-6">
+       {/* ✅ Responsive Navigation Buttons */}
+<div className="mb-6">
+  {/* Mobile Toggle */}
+  <div className="sm:hidden mb-3">
+    <button
+      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+      className="w-full bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex justify-between items-center transition font-medium border"
+    >
+      <span>Menu</span>
+      <ChevronDown className={`h-5 w-5 transform transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+    </button>
+
+    {/* Mobile Dropdown Menu */}
+    {isDropdownOpen && (
+      <div className="mt-2 bg-white rounded-lg shadow-md border border-gray-200 space-y-2 p-2">
+        <button
+          onClick={() => setCurrentView("dashboard")}
+          className={`w-full text-left px-4 py-2 rounded-lg font-medium ${
+            currentView === "dashboard"
+              ? "bg-blue-600 text-white"
+              : "hover:bg-gray-100 text-gray-700"
+          }`}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => setCurrentView("companies")}
+          className={`w-full text-left px-4 py-2 rounded-lg font-medium ${
+            currentView === "companies"
+              ? "bg-blue-600 text-white"
+              : "hover:bg-gray-100 text-gray-700"
+          }`}
+        >
+          Companies
+        </button>
+        <button
+          onClick={() => setIsEmailTemplateModalOpen(true)}
+          className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium"
+        >
+          Templates
+        </button>
+        <button
+          onClick={() => {
+            setBulkUploadType("bills");
+            setIsBulkUploadModalOpen(true);
+          }}
+          className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2"
+        >
+          <Upload className="h-4 w-4" />
+          <span>Bulk Upload</span>
+        </button>
+      </div>
+    )}
+  </div>
+
+  {/* Desktop Menu */}
+  <div className="hidden sm:flex items-center space-x-4 navbar-buttons">
+    <button
+      onClick={() => setCurrentView("dashboard")}
+      className={`px-6 py-3 rounded-lg font-medium transition-all ${
+        currentView === "dashboard"
+          ? "bg-blue-600 text-white shadow-lg"
+          : "bg-white text-gray-700 hover:bg-gray-100"
+      }`}
+    >
+      Dashboard
+    </button>
+    <button
+      onClick={() => setCurrentView("companies")}
+      className={`px-6 py-3 rounded-lg font-medium transition-all ${
+        currentView === "companies"
+          ? "bg-blue-600 text-white shadow-lg"
+          : "bg-white text-gray-700 hover:bg-gray-100"
+      }`}
+    >
+      <Building2 className="h-5 w-5 inline mr-1" />
+      Companies
+    </button>
+    <button
+      onClick={() => setIsEmailTemplateModalOpen(true)}
+      className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
+    >
+      <Template className="h-4 w-4" />
+      <span>Templates</span>
+    </button>
+    <div className="relative">
+      <button
+        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+        className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
+      >
+        <Upload className="h-4 w-4" />
+        <span>Bulk Upload</span>
+        <ChevronDown className="h-4 w-4" />
+      </button>
+      {isDropdownOpen && (
+        <div className="absolute top-12 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-40 z-50">
+          <button
+            onClick={() => {
+              setBulkUploadType("bills");
+              setIsDropdownOpen(false);
+              setIsBulkUploadModalOpen(true);
+            }}
+            className="block w-full text-left px-2 py-3 hover:bg-gray-100"
+          >
+            Upload Bills
+          </button>
+          <button
+            onClick={() => {
+              setBulkUploadType("companies");
+              setIsDropdownOpen(false);
+              setIsBulkUploadModalOpen(true);
+            }}
+            className="block w-full text-left px-2 py-3 hover:bg-gray-100"
+          >
+            Upload Companies
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
 
         {/* Dashboard or Companies Page */}
         {currentView === "dashboard" ? (
           <>
             {/* Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="stats-grid grid gap-6 mb-8">
               <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-lg border border-blue-100 p-6">
                 <p className="text-sm text-gray-600 font-medium">Total Pending Bills</p>
                 <p className="text-4xl font-bold text-blue-600">{totalPendingBills}</p>

@@ -95,9 +95,9 @@ const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+ return (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="modal-container bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 overflow-y-auto">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -116,7 +116,7 @@ const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="form-grid grid gap-6">
             <div>
               <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-2">
                 <Building2 className="inline h-4 w-4 mr-1" />
@@ -227,7 +227,7 @@ const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
             {errors.address && <p id="company-address-error" className="mt-1 text-sm text-red-600">{errors.address}</p>}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="address-grid grid gap-4">
             <div>
               <label htmlFor="company-city" className="block text-sm font-medium text-gray-700 mb-2">City *</label>
               <input

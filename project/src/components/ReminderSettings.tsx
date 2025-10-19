@@ -18,7 +18,7 @@ const ReminderSettings: React.FC<ReminderSettingsProps> = ({ company, onUpdateSe
   const intervalRef = useRef<number | null>(null);
 
   // webhook URL - use company.webhookUrl if present, fallback to placeholder
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl;
+  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (company as any).webhookUrl || 'https://n8n.srv954870.hstgr.cloud/webhook/e012ebe8-18a3-401b-a72a-e4fdeba3395dhttps://n8n.srv954870.hstgr.cloud/webhook/e012ebe8-18a3-401b-a72a-e4fdeba3395d';
 
 
   // sendReminder: POST to the already-created webhook workflow

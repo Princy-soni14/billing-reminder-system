@@ -1,0 +1,169 @@
+/* =========================================================
+   📱 GLOBAL RESPONSIVE STYLES for Billing Reminder System
+   ========================================================= */
+
+/* ---------------------------------------------
+   🧱 BASE GRID HELPERS (used across app)
+--------------------------------------------- */
+.form-grid,
+.address-grid,
+.bill-details-grid,
+.stats-grid,
+.company-cards {
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* ---------------------------------------------
+   🖥️ LAPTOPS & DESKTOPS (≥ 1024px)
+--------------------------------------------- */
+@media (min-width: 1024px) {
+  /* Dashboard: 3-column grid on large screens */
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* Company cards arranged in 3 columns */
+  .company-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* Add company modal layout */
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .address-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* Bill details modal grid */
+  .bill-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Modals centered and sized */
+  .modal-container {
+    width: 60%;
+  }
+
+  /* Header title size */
+  header h1 {
+    font-size: 1.8rem;
+  }
+}
+
+/* ---------------------------------------------
+   💻 TABLETS (641px – 1023px)
+--------------------------------------------- */
+@media (min-width: 641px) and (max-width: 1023px) {
+  /* Dashboard: 2-column grid */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .company-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .address-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bill-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .modal-container {
+    width: 70%;
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+  }
+}
+
+/* ---------------------------------------------
+   📱 MOBILE DEVICES (up to 640px)
+--------------------------------------------- */
+@media (max-width: 640px) {
+  /* 🧭 Navbar buttons become vertical */
+  .navbar-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .navbar-buttons button {
+    width: 100%;
+    justify-content: center;
+    font-size: 0.95rem;
+  }
+
+  /* Dashboard metrics - single column */
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stats-grid > div {
+    text-align: center;
+    width: 100%;
+  }
+
+  /* Company list or cards - single column */
+  .company-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Forms and Address blocks inside modals */
+  .form-grid,
+  .address-grid,
+  .bill-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Make modal fully readable & scrollable */
+  .modal-container {
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Header text smaller and centered */
+  header h1 {
+    font-size: 1.2rem;
+    text-align: center;
+  }
+
+  /* Company section stacking */
+  .company-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Tables scroll horizontally */
+  .table-wrapper {
+    overflow-x: auto;
+    display: block;
+  }
+
+  .table-wrapper table {
+    min-width: 600px;
+  }
+}
+@media (max-width: 640px) {
+  .navbar-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .navbar-buttons button {
+    width: 100%;
+  }
+}
