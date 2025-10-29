@@ -29,39 +29,9 @@ import { EmailService } from "./services/emailService";
 import { Bill, Company, ReminderLog, EmailTemplate, CompanyCC } from "./types";
 import { collection, getDocs, query, where, addDoc, updateDoc,setDoc,deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
+import RequireAuth from "./components/RequireAuth";
 
-// -------------------------------------------------------------
-// 🔐 Role-Based Protection Wrapper
-// -------------------------------------------------------------
-const RequireAuth = ({
-  children,
-  allowedRoles,
-}: {
-  children: React.ReactNode;
-  allowedRoles?: ("admin" | "user")[];
-}) => {
-  const { user, role, loading } = useAuth();
 
-  if (loading)
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">
-        Loading...
-      </div>
-    );
-
-  if (!user || !role) return <Navigate to="/login" replace />;
-
-  if (allowedRoles && !allowedRoles.includes(role))
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500 font-semibold">
-          ❌ Access Denied: You don’t have permission to view this page.
-        </p>
-      </div>
-    );
-
-  return <>{children}</>;
-};
 
 // -------------------------------------------------------------
 // ⚙️ Main App Content

@@ -12,21 +12,21 @@ const LoginForm: React.FC = () => {
   const navigate = useNavigate();   // ✅ hook
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.success("Login successful!");
-      setTimeout(() => navigate("/"), 300);  // ✅ go to dashboard route
-      // AuthContext will update role + companyId automatically
-    } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Invalid email or password");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    toast.success("Login successful!");
+    navigate("/", { replace: true }); // ✅ No reload, instant redirect
+  } catch (error: any) {
+    console.error("Login error:", error);
+    toast.error(error.message || "Invalid email or password");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">

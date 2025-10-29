@@ -10,8 +10,8 @@ type RequireAuthProps = {
 const RequireAuth: React.FC<RequireAuthProps> = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth();
 
-  // While checking auth
-  if (loading) {
+  // Wait until Firebase + Firestore both finish loading
+  if (loading || (user && !role)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-600">Loading...</p>
@@ -19,19 +19,11 @@ const RequireAuth: React.FC<RequireAuthProps> = ({ children, allowedRoles }) => 
     );
   }
 
-  // 🚪 If not logged in → send to login
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  // If user not logged in → go to login
+  if (!user) return <Navigate to="/login" replace />;
 
-  
-  // 🚪 If role is null (claims not set) → send to login
-  if (!role) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // ❌ If role exists but not allowed → block access
-  if (allowedRoles && !allowedRoles.includes(role)) {
+  // If role not allowed → block
+  if (allowedRoles && role && !allowedRoles.includes(role)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-red-500 font-semibold">
@@ -41,7 +33,7 @@ const RequireAuth: React.FC<RequireAuthProps> = ({ children, allowedRoles }) => 
     );
   }
 
-  // ✅ Else → render page
+  // Otherwise → show the page
   return <>{children}</>;
 };
 
