@@ -16,7 +16,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "firebase": "^12.3.0",
-    "firebase-admin": "^13.5.0",
+    "firebase-admin": "^13.6.0",
     "lucide-react": "^0.344.0",
     "node-fetch": "^3.3.2",
     "papaparse": "^5.5.3",

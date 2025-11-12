@@ -8,12 +8,16 @@ import {
   Building2,
   LogOut,
   Upload,
-  ChevronDown, // ✅ Import missing icon
+  ChevronDown,
+  UserPlus,
+  Edit, // Added for Edit button
+  Plus, // Added for Add button
 } from "lucide-react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginForm from "./components/LoginForm";
-import CompanySelector from "./components/CompanySelector";
+// 🚀 We no longer need CompanySelector, as we've rebuilt its UI here
+// import CompanySelector from "./components/CompanySelector"; 
 import CompaniesPage from "./components/CompaniesPage";
 import AddCompanyModal from "./components/AddCompanyModal";
 import EditCompanyModal from "./components/EditCompanyModal";
@@ -30,7 +34,7 @@ import { Bill, Company, ReminderLog, EmailTemplate, CompanyCC } from "./types";
 import { collection, getDocs, query, where, addDoc, updateDoc,setDoc,deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import RequireAuth from "./components/RequireAuth";
-
+import { AddUserModal } from "./components/AddUserModal";
 
 
 // -------------------------------------------------------------
@@ -46,7 +50,7 @@ function AppContent() {
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(defaultEmailTemplates);
 
   // UI state
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | "ALL">("ALL");
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [reminderLogs, setReminderLogs] = useState<ReminderLog[]>([]);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -59,30 +63,37 @@ function AppContent() {
   const [bulkUploadType, setBulkUploadType] = useState<"bills" | "companies">("bills");
   const [currentView, setCurrentView] = useState<"dashboard" | "companies">("dashboard");
   const [companyForCC, setCompanyForCC] = useState<Company | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false); // ✅ Add missing state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 
-
-  // -------------------------------------------------------------
-  // 🔥 Firestore Fetch Logic
-  // -------------------------------------------------------------
-  // -------------------------------------------------------------
+// -------------------------------------------------------------
 // 🔥 Firestore Fetch Logic (Reusable)
 // -------------------------------------------------------------
 const fetchData = async () => {
   if (loading) return;
 
   try {
-    // -------------------------------
-    // 1️⃣ Fetch Companies
-    // -------------------------------
-    if (role === "admin") {
+    // 🚀 UPDATED LOGIC:
+    // If you are an admin OR a user without a specific companyId, fetch ALL data.
+    if (role === "admin" || (role === "user" && !companyId)) {
+      // 1️⃣ Fetch ALL Companies
       const companySnap = await getDocs(collection(db, "companies"));
       const companyData = companySnap.docs.map(
         (d) => ({ id: d.id, ...d.data() } as Company)
       );
       setCompanies(companyData);
-    } else if (role === "user" && companyId) {
+
+      // 2️⃣ Fetch ALL Bills
+      const billsSnap = await getDocs(collection(db, "bills"));
+      const billData = billsSnap.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as Bill)
+      );
+      setBills(billData);
+    } 
+    // Otherwise, if you are a user WITH a companyId, fetch only that company's data.
+    else if (role === "user" && companyId) {
+      // 1️⃣ Fetch Specific Company
       const companyDoc = await getDoc(doc(db, "companies", companyId));
       if (companyDoc.exists()) {
         setCompanies([{ id: companyDoc.id, ...companyDoc.data() } as Company]);
@@ -90,18 +101,8 @@ const fetchData = async () => {
         console.warn("⚠️ No company found for ID:", companyId);
         setCompanies([]);
       }
-    }
 
-    // -------------------------------
-    // 2️⃣ Fetch Bills
-    // -------------------------------
-    if (role === "admin") {
-      const billsSnap = await getDocs(collection(db, "bills"));
-      const billData = billsSnap.docs.map(
-        (d) => ({ id: d.id, ...d.data() } as Bill)
-      );
-      setBills(billData);
-    } else if (role === "user" && companyId) {
+      // 2️⃣ Fetch Specific Bills
       const billsQuery = query(
         collection(db, "bills"),
         where("companyId", "==", companyId)
@@ -124,6 +125,7 @@ const fetchData = async () => {
 useEffect(() => {
   fetchData();
 }, [role, companyId, loading]);
+
 // Expose refreshData for other handlers
 const refreshData = async () => {
   const toastId = toast.loading("Refreshing dashboard data...");
@@ -136,17 +138,22 @@ const refreshData = async () => {
   }
 };
 
-  // Set default selected company (fix: use index 0, not 1)
-  useEffect(() => {
-    if (!selectedCompany && companies.length > 0) {
-      setSelectedCompany(companies[0]);
-    }
-  }, [companies, selectedCompany]);
+  // 🚀 REPLACED: This logic derives the company/bills to show
+  
+  // Get the selected company object (will be null if "ALL" is chosen)
+  const selectedCompany =
+    companies.find((c) => c.id === selectedCompanyId) || null;
 
-  const companyBills = selectedCompany
-    ? bills.filter((b) => b.companyId === selectedCompany.id)
-    : [];
+  // Filter bills based on selection
+  const billsToShow =
+    selectedCompanyId === "ALL"
+      ? bills // Show all bills
+      : bills.filter((b) => b.companyId === selectedCompanyId); // Show filtered bills
 
+  // Sort bills by due date (ascending)
+  const companyBills = [...billsToShow].sort(
+    (a, b) => (a.dueDays || 0) - (b.dueDays || 0)
+  );
 // -------------------------------------------------------------
 // 🧾 Bulk Upload Handler with Sequential IDs (Bills + Companies)
 // -------------------------------------------------------------
@@ -244,7 +251,10 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
   // -------------------------------------------------------------
   const handleSendReminder = async (billId: string, type: "manual" | "automatic") => {
     const bill = bills.find((b) => b.id === billId);
-    if (!bill || !selectedCompany) return;
+    if (!bill || !selectedCompany) {
+      toast.error("Please select a specific company to send reminders.");
+      return;
+    };
 
     if (bill.isReminderPaused && type === "automatic") {
       toast.error("Reminder is paused for this bill");
@@ -252,7 +262,14 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
     }
 
     try {
-      const result = await EmailService.sendReminder(bill, selectedCompany, type);
+      // We must have a selectedCompany to send a reminder
+      const companyForBill = companies.find(c => c.id === bill.companyId);
+      if (!companyForBill) {
+        toast.error("Could not find company for this bill.");
+        return;
+      }
+
+      const result = await EmailService.sendReminder(bill, companyForBill, type);
 
       if (result.success) {
         setBills((prev) =>
@@ -277,7 +294,7 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
   };
 
   const handleSendConsolidatedReminder = async () => {
-    if (!selectedCompany) return;
+    if (!selectedCompany) return; // This button is now hidden if no company is selected
     const pendingBills = companyBills.filter((b) => !b.isReminderPaused);
     if (pendingBills.length === 0) {
       toast.error("No active bills to send reminders for");
@@ -439,6 +456,20 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
           <Upload className="h-4 w-4" />
           <span>Bulk Upload</span>
         </button>
+        {/* 🚀 START: ADD USER BUTTON (MOBILE) */}
+      {role === "admin" && (
+        <button
+          onClick={() => {
+            setIsAddUserModalOpen(true);
+            setIsDropdownOpen(false); // Close menu
+          }}
+          className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2"
+        >
+          <UserPlus className="h-4 w-4" />
+          <span>User Management</span>
+        </button>
+      )}
+      {/* 🚀 END: ADD USER BUTTON (MOBILE) */}
       </div>
     )}
   </div>
@@ -473,40 +504,28 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
       <Template className="h-4 w-4" />
       <span>Templates</span>
     </button>
-    <div className="relative">
+    {/* 🚀 REPLACED: Bulk Upload is now a single button */}
+    <button
+      onClick={() => {
+        setBulkUploadType("bills"); // This ensures the modal opens in "bills" mode
+        setIsBulkUploadModalOpen(true);
+      }}
+      className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
+    >
+      <Upload className="h-4 w-4" />
+      <span>Bulk Upload</span>
+    </button>
+    {/* 🚀 START: ADD USER BUTTON (DESKTOP) */}
+    {role === "admin" && (
       <button
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+        onClick={() => setIsAddUserModalOpen(true)}
         className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
       >
-        <Upload className="h-4 w-4" />
-        <span>Bulk Upload</span>
-        <ChevronDown className="h-4 w-4" />
+        <UserPlus className="h-4 w-4" />
+        <span>User Management</span>
       </button>
-      {isDropdownOpen && (
-        <div className="absolute top-12 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-40 z-50">
-          <button
-            onClick={() => {
-              setBulkUploadType("bills");
-              setIsDropdownOpen(false);
-              setIsBulkUploadModalOpen(true);
-            }}
-            className="block w-full text-left px-2 py-3 hover:bg-gray-100"
-          >
-            Upload Bills
-          </button>
-          <button
-            onClick={() => {
-              setBulkUploadType("companies");
-              setIsDropdownOpen(false);
-              setIsBulkUploadModalOpen(true);
-            }}
-            className="block w-full text-left px-2 py-3 hover:bg-gray-100"
-          >
-            Upload Companies
-          </button>
-        </div>
-      )}
-    </div>
+    )}
+    {/* 🚀 END: ADD USER BUTTON (DESKTOP) */}
   </div>
 </div>
 
@@ -531,20 +550,75 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
               </div>
             </div>
 
-            {/* Company Section */}
-            {selectedCompany && (
-              <>
-                <CompanySelector
-  company={selectedCompany}
-  companies={companies} // 👈 pass all companies so dropdown appears for admin
-  onCompanyChange={(newCompany) => {
-    setSelectedCompany(newCompany);
-    toast.success(`Switched to ${newCompany.name}`);
-  }}
-  onAddCompany={() => setIsAddCompanyModalOpen(true)}
-  onEditCompany={() => setIsEditCompanyModalOpen(true)}
-/>
+            {/* 🚀 REPLACED: Company Section (Hybrid UI) */}
+            
+            {/* --- Master Company Selector --- */}
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <div className="flex flex-wrap justify-between items-center gap-4">
+                {/* Dropdown on the left */}
+                <div>
+                  <label htmlFor="company-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Company
+                  </label>
+                  <select
+                    id="company-select"
+                    className="block w-full sm:w-96 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-lg p-3"
+                    value={selectedCompanyId}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setSelectedCompanyId(newId as string | "ALL");
+                      if (newId !== "ALL") {
+                        const newCompany = companies.find(c => c.id === newId);
+                        if (newCompany) toast.success(`Switched to ${newCompany.name}`);
+                      } else {
+                        toast.success("Showing all companies");
+                      }
+                    }}
+                  >
+                    <option value="ALL">-- ALL COMPANIES --</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Buttons on the right */}
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsAddCompanyModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    Add Company
+                  </button>
+                  {/* Only show Edit if a specific company is selected */}
+                  {selectedCompany && (
+                    <button 
+                      onClick={() => setIsEditCompanyModalOpen(true)}
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium flex items-center gap-2"
+                    >
+                      <Edit size={16} />
+                      Edit Selected
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
+            {/* --- Conditionally Show Details OR "All" Message --- */}
+            {selectedCompanyId !== "ALL" && selectedCompany ? (
+              <>
+                {/* This is the UI you missed (re-created from CompanySelector) */}
+                <div className="bg-white p-6 rounded-lg shadow-lg mb-6 border-l-4 border-blue-600">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">{selectedCompany.name}</h2>
+                  <div className="text-gray-600 space-y-1">
+                    <p><strong>Address:</strong> {selectedCompany.address}, {selectedCompany.city}, {selectedCompany.state} - {selectedCompany.pincode}</p>
+                    <p><strong>Email:</strong> <a href={`mailto:${selectedCompany.email}`} className="text-blue-600 hover:underline">{selectedCompany.email}</a></p>
+                    <p><strong>Contact:</strong> {selectedCompany.contactPerson} ({selectedCompany.phone})</p>
+                  </div>
+                </div>
 
                 <div className="mb-6">
                   <button
@@ -560,55 +634,62 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
                   company={selectedCompany}
                   onUpdateSettings={() => toast.success("Reminder settings updated")}
                 />
-
-                <BillsTable
-                  bills={companyBills}
-                  companies={companies}
-                  onSendReminder={handleSendReminder}
-                  onToggleReminderPause={handleToggleReminderPause}
-                  onBillSelect={(bill) => {
-                    setSelectedBill(bill);
-                    setIsDetailsModalOpen(true);
-                  }}
-                />
               </>
+            ) : (
+              <div className="mb-6">
+                <p className="text-gray-600">
+                  Displaying {companyBills.length} bills from all companies, sorted by due date.
+                </p>
+              </div>
             )}
+
+            {/* BillsTable (this part is correct) */}
+            <BillsTable
+              bills={companyBills}
+              companies={companies}
+              onSendReminder={handleSendReminder}
+              onToggleReminderPause={handleToggleReminderPause}
+              onBillSelect={(bill) => {
+                setSelectedBill(bill);
+                setIsDetailsModalOpen(true);
+              }}
+            />
           </>
         ) : (
           <CompaniesPage
             companies={companies}
             onAddCompany={() => setIsAddCompanyModalOpen(true)}
             onEditCompany={(c) => {
-              setSelectedCompany(c);
+              // ✅ FIXED: Use the ID setter
+              setSelectedCompanyId(c.id); 
               setIsEditCompanyModalOpen(true);
             }}
             onDeleteCompany={async (id) => {
-  try {
-    // Delete the main company doc
-    await deleteDoc(doc(db, "companies", id));
+              try {
+                // Delete the main company doc
+                await deleteDoc(doc(db, "companies", id));
 
-    //Delete all bills belonging to this company
-    const billsSnapshot = await getDocs(query(collection(db, "bills"), where("companyId", "==", id)));
-    for (const billDoc of billsSnapshot.docs) {
-      await deleteDoc(doc(db, "bills", billDoc.id));
-    }
+                //Delete all bills belonging to this company
+                const billsSnapshot = await getDocs(query(collection(db, "bills"), where("companyId", "==", id)));
+                for (const billDoc of billsSnapshot.docs) {
+                  await deleteDoc(doc(db, "bills", billDoc.id));
+                }
 
-    //  Delete all CC emails (subcollection)
-    const ccSnapshot = await getDocs(collection(db, "companies", id, "ccEmails"));
-    for (const ccDoc of ccSnapshot.docs) {
-      await deleteDoc(ccDoc.ref);
-    }
+                //  Delete all CC emails (subcollection)
+                const ccSnapshot = await getDocs(collection(db, "companies", id, "ccEmails"));
+                for (const ccDoc of ccSnapshot.docs) {
+                  await deleteDoc(ccDoc.ref);
+                }
 
-    //  Update local state instantly
-    setCompanies((prev) => prev.filter((c) => c.id !== id));
+                //  Update local state instantly
+                setCompanies((prev) => prev.filter((c) => c.id !== id));
 
-    toast.success(`🗑️ Company and related data deleted successfully!`);
-  } catch (error) {
-    console.error("Error deleting company:", error);
-    toast.error("❌ Failed to delete company. Please try again.");
-  }
-}}
-
+                toast.success(`🗑️ Company and related data deleted successfully!`);
+              } catch (error) {
+                console.error("Error deleting company:", error);
+                toast.error("❌ Failed to delete company. Please try again.");
+              }
+            }}
             onManageCC={(c) => {
               setCompanyForCC(c);
               setIsManageCCModalOpen(true);
@@ -618,75 +699,82 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
       </div>
 
       {/* ---------------- Modals ---------------- */}
+      {/* 🚀 START: ADD USER MODAL */}
+    <AddUserModal
+      isOpen={isAddUserModalOpen}
+      onClose={() => setIsAddUserModalOpen(false)}
+    />
+    {/* 🚀 END: ADD USER MODAL */}
       <AddCompanyModal
-  isOpen={isAddCompanyModalOpen}
-  onClose={() => setIsAddCompanyModalOpen(false)}
-  onAddCompany={async (newCompany) => {
-    try {
-      // ✅ 1. Generate sequential custom ID like comp-001, comp-002
-      const snapshot = await getDocs(collection(db, "companies"));
-      const total = snapshot.size + 1;
-      const newId = `comp-${String(total).padStart(3, "0")}`; // comp-001, comp-002 ...
+        isOpen={isAddCompanyModalOpen}
+        onClose={() => setIsAddCompanyModalOpen(false)}
+        onAddCompany={async (newCompany) => {
+          try {
+            // ✅ 1. Generate sequential custom ID like comp-001, comp-002
+            const snapshot = await getDocs(collection(db, "companies"));
+            const total = snapshot.size + 1;
+            const newId = `comp-${String(total).padStart(3, "0")}`; // comp-001, comp-002 ...
 
-      // ✅ 2. Create Firestore doc with custom ID
-      const docRef = doc(db, "companies", newId);
-      await setDoc(docRef, {
-        ...(newCompany as Partial<Company>), // ✅ fixes TS type error
-        id: newId,
-        totalPendingAmount: 0,
-        createdAt: new Date().toISOString(),
-      });
+            // ✅ 2. Create Firestore doc with custom ID
+            const docRef = doc(db, "companies", newId);
+            await setDoc(docRef, {
+              ...(newCompany as Partial<Company>), // ✅ fixes TS type error
+              id: newId,
+              totalPendingAmount: 0,
+              createdAt: new Date().toISOString(),
+            });
 
-      // ✅ 3. Update local state instantly
-      setCompanies((prev) => [
-        ...prev,
-        {
-          id: newId,
-          ...(newCompany as Partial<Company>),
-          totalPendingAmount: 0,
-          createdAt: new Date().toISOString(),
-        } as Company,
-      ]);
+            // ✅ 3. Update local state instantly
+            setCompanies((prev) => [
+              ...prev,
+              {
+                id: newId,
+                ...(newCompany as Partial<Company>),
+                totalPendingAmount: 0,
+                createdAt: new Date().toISOString(),
+              } as Company,
+            ]);
 
-      toast.success(`✅ Company "${newCompany.name}" added successfully!`);
-    } catch (error) {
-      console.error("Error adding company:", error);
-      toast.error("❌ Failed to add company. Please try again.");
-    }
-  }}
-/>
+            toast.success(`✅ Company "${newCompany.name}" added successfully!`);
+          } catch (error) {
+            console.error("Error adding company:", error);
+            toast.error("❌ Failed to add company. Please try again.");
+          }
+        }}
+      />
 
 
 
       <EditCompanyModal
-  company={selectedCompany || ({} as Company)}
-  isOpen={isEditCompanyModalOpen}
-  onClose={() => setIsEditCompanyModalOpen(false)}
-  onUpdateCompany={async (updatedCompany) => {
-    try {
-      // ✅ Update Firestore document
-      const companyRef = doc(db, "companies", updatedCompany.id);
-      await updateDoc(companyRef, {
-        ...updatedCompany,
-        updatedAt: new Date().toISOString(), // optional timestamp
-      });
+        company={selectedCompany || ({} as Company)} // Pass the derived selectedCompany
+        isOpen={isEditCompanyModalOpen}
+        onClose={() => setIsEditCompanyModalOpen(false)}
+        onUpdateCompany={async (updatedCompany) => {
+          try {
+            // ✅ Update Firestore document
+            const companyRef = doc(db, "companies", updatedCompany.id);
+            await updateDoc(companyRef, {
+              ...updatedCompany,
+              updatedAt: new Date().toISOString(), // optional timestamp
+            });
 
-      // ✅ Update local state instantly
-      setCompanies((prev) =>
-        prev.map((c) => (c.id === updatedCompany.id ? updatedCompany : c))
-      );
+            // ✅ Update local state instantly
+            setCompanies((prev) =>
+              prev.map((c) => (c.id === updatedCompany.id ? updatedCompany : c))
+            );
 
-      if (selectedCompany?.id === updatedCompany.id) {
-        setSelectedCompany(updatedCompany);
-      }
+            // ✅ FIXED: No need to set selectedCompany, it's derived
+            // if (selectedCompany?.id === updatedCompany.id) {
+            //   setSelectedCompany(updatedCompany); 
+            // }
 
-      toast.success(`Company "${updatedCompany.name}" updated successfully!`);
-    } catch (error) {
-      console.error("Error updating company:", error);
-      toast.error("❌ Failed to update company. Please try again.");
-    }
-  }}
-/>
+            toast.success(`Company "${updatedCompany.name}" updated successfully!`);
+          } catch (error) {
+            console.error("Error updating company:", error);
+            toast.error("❌ Failed to update company. Please try again.");
+          }
+        }}
+      />
 
 
       {companyForCC && (
@@ -753,18 +841,14 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
       />
 
       <BulkUploadModal
-  isOpen={isBulkUploadModalOpen}
-  onClose={() => setIsBulkUploadModalOpen(false)}
-  onUpload={(data, type) => {
-    if (type === "bills") {
-      toast.success(`✅ Uploaded ${data.length} bills successfully!`);
-    } else if (type === "companies") {
-      toast.success(`🏢 Uploaded ${data.length} companies successfully!`);
-    }
-    refreshData(); // 🔄 instantly reload both bills or companies
-  }}
-  type={bulkUploadType}
-/>
+        isOpen={isBulkUploadModalOpen}
+        onClose={() => setIsBulkUploadModalOpen(false)}
+        onUpload={(data, type) => {
+          // 🚀 This function name was wrong, fixed it to 'handleBulkUpload'
+          handleBulkUpload(data, type); 
+        }}
+        type={bulkUploadType}
+      />
 
 
       <BillDetailsModal
