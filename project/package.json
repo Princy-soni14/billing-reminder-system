@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "set:claims": "node scripts/setClaims.mjs",
-    "seed": "node --loader ts-node/esm scripts/seed.ts"
+    "seed": "node --loader ts-node/esm scripts/seed.ts",
+     "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -29,6 +29,7 @@ dist-ssr
 firebase-role-tool/serviceAccountKey.json
 project/serviceAccountKey.json
 project/firebase-service-account.json
+firebase-service-account.json
 
 # local-only server
 server.js

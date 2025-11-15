@@ -59,8 +59,8 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
       // 1. Get the admin's fresh auth token
       const token = await adminUser.getIdToken();
 
-      // 2. Call your backend API
-      const response = await fetch("http://localhost:5174/api/create-user", {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL; // <--- THIS LINE IS NEW.
+       const response = await fetch(`${baseUrl}/api/create-user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
