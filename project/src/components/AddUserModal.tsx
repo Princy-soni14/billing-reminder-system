@@ -1,6 +1,21 @@
 import { useState, FormEvent } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { X } from "lucide-react"; // Using lucide-react, common in shadcn/tailwind
+import { X } from "lucide-react";
+
+// ============================================================================
+// ⚠️ IMPORTANT: UNCOMMENT THE LINE BELOW IN YOUR REAL PROJECT
+// import { useAuth } from "../contexts/AuthContext";
+// ============================================================================
+
+// ============================================================================
+// ⚠️ TEMPORARY MOCK (DELETE THIS SECTION IN YOUR REAL PROJECT)
+// This is only here so the preview works in this chat window.
+const useAuth = () => ({
+  user: {
+    getIdToken: async (forceRefresh?: boolean) => "mock-token-for-preview",
+    email: "admin@company.com"
+  }
+});
+// ============================================================================
 
 // Define the props for the modal
 interface AddUserModalProps {
@@ -36,16 +51,19 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"user" | "admin">("user"); // Default to 'user'
+  const [role, setRole] = useState<"user" | "admin">("user");
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const { user: adminUser } = useAuth(); // Get the currently logged-in admin user
+  // ✅ Get the real logged-in admin user from your Context
+  const { user: adminUser } = useAuth(); 
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    
+    // ✅ Ensure we have a real admin user logged in
     if (!adminUser) {
       setError("Admin user not found. Please re-login.");
       return;
@@ -56,18 +74,30 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
     setSuccess(null);
 
     try {
-      // 1. Get the admin's fresh auth token
-      const token = await adminUser.getIdToken();
+      // 1. Get the admin's FRESH auth token (Real Security)
+      // We force refresh to ensure the token isn't expired
+      const token = await adminUser.getIdToken(true); 
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL; // <--- THIS LINE IS NEW.
-       const response = await fetch(`${baseUrl}/api/create-user`, {
+      // 2. Call Backend API
+      // Fix for Vercel: default to empty string if env var is missing
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      
+      const response = await fetch(`${baseUrl}/api/create-user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Send the admin's token
+          Authorization: `Bearer ${token}`, // Send the REAL token
         },
         body: JSON.stringify({ name, email, password, role }),
       });
+
+      // Handle non-JSON responses (like Vercel 404/500 HTML pages)
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error("Server Error: API returned HTML instead of JSON. Check Vercel logs.");
+      }
 
       const data = await response.json();
 
@@ -77,34 +107,31 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
 
       // 3. Success!
       setSuccess(`User "${data.email}" created successfully!`);
-      // Reset form
       setName("");
       setEmail("");
       setPassword("");
       setRole("user");
-      // Optionally close modal after a delay
+
+      // Close modal after delay
       setTimeout(() => {
         onClose();
+        setSuccess(null);
+        setError(null);
       }, 2000);
 
     } catch (err: any) {
+      console.error(err);
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Don't render the modal if it's not open
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   return (
-    // Modal Overlay
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      {/* Modal Content */}
       <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute right-4 top-4 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -118,99 +145,72 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          {/* Form Fields */}
           <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Full Name
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Full Name</label>
             <input
               type="text"
-              id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="John Doe"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Email Address
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Email Address</label>
             <input
               type="email"
-              id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Set Password
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Set Password</label>
             <input
               type="password"
-              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Min. 6 characters"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="role"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Role
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Role</label>
             <select
-              id="role"
               value={role}
               onChange={(e) => setRole(e.target.value as "user" | "admin")}
               required
-              className="mt-1 block w-full rounded-md border-gray-300 bg-white py-2 pl-3 pr-10 text-base shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 bg-white py-2 pl-3 pr-10 text-base shadow-sm border focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
             >
               <option value="user">User (Company Login)</option>
               <option value="admin">Admin (Full Access)</option>
             </select>
           </div>
 
-          {/* Messages */}
           {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">{error}</div>}
           {success && <div className="rounded-md bg-green-50 p-3 text-sm text-green-600">{success}</div>}
 
-          {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-28 justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
+              className="flex w-32 justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
             >
               {isLoading ? <Spinner /> : "Create User"}
             </button>
@@ -220,3 +220,25 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
     </div>
   );
 };
+
+// ============================================================================
+// ✅ PREVIEW WRAPPER (This makes the preview work)
+// ============================================================================
+export default function App() {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-gray-100 p-10">
+      <div className="text-center">
+        <h1 className="mb-4 text-2xl font-bold">Add User Modal Preview</h1>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="rounded-md bg-blue-600 px-6 py-3 text-white shadow-sm hover:bg-blue-700"
+        >
+          Open Modal
+        </button>
+      </div>
+      <AddUserModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
+    </div>
+  );
+}
