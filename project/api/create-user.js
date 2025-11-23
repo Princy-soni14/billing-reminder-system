@@ -29,11 +29,16 @@ initAdmin();
 function runCors(req, res) {
   return new Promise((resolve, reject) => {
     cors({
-      origin: [
-        "http://localhost:5173",
-        "https://billing-reminder-system-1tqw.vercel.app"
-      ],
-    })(req, res, (result) => {
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "https://billing-reminder-system.vercel.app"
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+})
+(req, res, (result) => {
       if (result instanceof Error) reject(result);
       resolve(result);
     });
