@@ -1,6 +1,5 @@
 import admin from "firebase-admin";
 import cors from "cors";
-
 // ========== INIT FIREBASE ADMIN (VERCEL) ==========
 let initialized = false;
 
@@ -14,7 +13,14 @@ function initAdmin() {
     throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
   }
 
+  // Parse the string into an object
   const serviceAccount = JSON.parse(serviceAccountString);
+
+  // 🚀 FIX: Replace literal '\n' with actual newlines in the private key
+  // This is the critical fix for "Invalid PEM formatted message"
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+  }
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
