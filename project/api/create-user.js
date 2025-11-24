@@ -24,14 +24,13 @@ if (!admin.apps.length) {
     console.log("✅ Firebase Admin Initialized");
   } catch (error) {
     console.error("❌ Firebase Admin Init Error:", error.message);
-    // We don't throw here to allow the function to attempt to return a 500 error with details if possible
   }
 }
 
 // ========= CORS HANDLER (Vercel Compatible) =========
 const corsMiddleware = cors({
   methods: ["POST", "OPTIONS"],
-  origin: true, // Allow all origins for now to debug, or specify your Vercel URL
+  origin: true,
 });
 
 function runCors(req, res) {
@@ -82,7 +81,7 @@ export default async function handler(req, res) {
   try {
     // Ensure Admin SDK is ready
     if (!admin.apps.length) {
-        throw new Error("Firebase Admin failed to initialize. Check server logs.");
+      throw new Error("Firebase Admin failed to initialize. Check server logs.");
     }
 
     // Check admin access
@@ -103,6 +102,16 @@ export default async function handler(req, res) {
 
     // Set custom role
     await admin.auth().setCustomUserClaims(userRecord.uid, { role });
+
+    // ⭐ ADDED: Save user into Firestore "users" collection
+    await admin.firestore().collection("users").doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      name: name,
+      email: email,
+      role: role,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: adminUser.email,
+    });
 
     console.log(`✅ User created by admin ${adminUser.email}`);
 
