@@ -28,6 +28,7 @@ import BillDetailsModal from "./components/BillDetailsModal";
 import EmailPreviewModal from "./components/EmailPreviewModal";
 import ReminderSettings from "./components/ReminderSettings";
 import BulkUploadModal from "./components/BulkUploadModal";
+import BulkUploadCompaniesModal from "./components/BulkUploadCompaniesModal";
 import { defaultEmailTemplates } from "./data/mockData";
 import { EmailService } from "./services/emailService";
 import { Bill, Company, ReminderLog, EmailTemplate, CompanyCC } from "./types";
@@ -447,15 +448,29 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
           Templates
         </button>
         <button
-          onClick={() => {
-            setBulkUploadType("bills");
-            setIsBulkUploadModalOpen(true);
-          }}
-          className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2"
-        >
-          <Upload className="h-4 w-4" />
-          <span>Bulk Upload</span>
-        </button>
+  onClick={() => {
+    setBulkUploadType("bills");
+    setIsBulkUploadModalOpen(true);
+    setIsDropdownOpen(false);
+  }}
+  className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2"
+>
+  <Upload className="h-4 w-4" />
+  <span>Bulk Upload Bills</span>
+</button>
+
+<button
+  onClick={() => {
+    setBulkUploadType("companies");
+    setIsBulkUploadModalOpen(true);
+    setIsDropdownOpen(false);
+  }}
+  className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2"
+>
+  <Upload className="h-4 w-4" />
+  <span>Bulk Upload Companies</span>
+</button>
+
         {/* 🚀 START: ADD USER BUTTON (MOBILE) */}
       {role === "admin" && (
         <button
@@ -504,17 +519,45 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
       <Template className="h-4 w-4" />
       <span>Templates</span>
     </button>
-    {/* 🚀 REPLACED: Bulk Upload is now a single button */}
-    <button
-      onClick={() => {
-        setBulkUploadType("bills"); // This ensures the modal opens in "bills" mode
-        setIsBulkUploadModalOpen(true);
-      }}
-      className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
-    >
-      <Upload className="h-4 w-4" />
-      <span>Bulk Upload</span>
-    </button>
+    
+ {/* Bulk Upload dropdown (desktop) */}
+<div className="relative">
+  <button
+    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+    className="bg-white hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg flex items-center space-x-2 transition font-medium"
+  >
+    <Upload className="h-4 w-4" />
+    <span>Bulk Upload</span>
+    <ChevronDown className="h-4 w-4" />
+  </button>
+  {isDropdownOpen && (
+    <div className="absolute top-12 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-44 z-50">
+      <button
+        onClick={() => {
+          setBulkUploadType("bills");
+          setIsDropdownOpen(false);
+          setIsBulkUploadModalOpen(true);
+        }}
+        className="block w-full text-left px-4 py-3 hover:bg-gray-100"
+      >
+        Upload Bills
+      </button>
+      <button
+        onClick={() => {
+          setBulkUploadType("companies");
+          setIsDropdownOpen(false);
+          setIsBulkUploadModalOpen(true);
+        }}
+        className="block w-full text-left px-4 py-3 hover:bg-gray-100"
+      >
+        Upload Companies
+      </button>
+    </div>
+  )}
+</div>
+
+
+
     {/* 🚀 START: ADD USER BUTTON (DESKTOP) */}
     {role === "admin" && (
       <button
@@ -840,15 +883,21 @@ const handleBulkUpload = async (data: any[], type: "bills" | "companies") => {
         existingTemplates={emailTemplates}
       />
 
-      <BulkUploadModal
-        isOpen={isBulkUploadModalOpen}
-        onClose={() => setIsBulkUploadModalOpen(false)}
-        onUpload={(data, type) => {
-          // 🚀 This function name was wrong, fixed it to 'handleBulkUpload'
-          handleBulkUpload(data, type); 
-        }}
-        type={bulkUploadType}
-      />
+      {/* Bulk Upload Bills modal */}
+<BulkUploadModal
+  isOpen={isBulkUploadModalOpen && bulkUploadType === "bills"}
+  onClose={() => setIsBulkUploadModalOpen(false)}
+  onUpload={(data, type) => handleBulkUpload(data, type)}
+  type="bills"
+/>
+
+{/* Bulk Upload Companies modal */}
+<BulkUploadCompaniesModal
+  isOpen={isBulkUploadModalOpen && bulkUploadType === "companies"}
+  onClose={() => setIsBulkUploadModalOpen(false)}
+  onUpload={(data, type) => handleBulkUpload(data, type)}
+/>
+
 
 
       <BillDetailsModal
