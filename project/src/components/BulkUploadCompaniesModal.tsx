@@ -42,13 +42,49 @@ const parseCompaniesExcel = async (file: File) => {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
 
-  if (!raw || raw.length === 0) throw new Error("Empty or unreadable file");
+  // 🔍 Convert full sheet → rows (2D array)
+  const sheetJson = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: ""
+  }) as any[][];
 
-  // Normalize header names for mapping; create rows array of normalized values
+  // 🔍 Auto-detect header row (within first 20 rows)
+  let headerRowIndex = -1;
+
+  for (let i = 0; i < 20 && i < sheetJson.length; i++) {
+    const row = sheetJson[i].map((c: any) =>
+      String(c).trim().toLowerCase()
+    );
+
+    if (
+      row.includes("name") ||
+      row.includes("company name") ||
+      row.includes("address") ||
+      row.includes("contact no.") ||
+      row.includes("e-mail & website")
+    ) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    throw new Error("Cannot detect header row — invalid company file format.");
+  }
+
+  // 📌 Now parse using this detected header row
+  const raw = XLSX.utils.sheet_to_json(ws, {
+    defval: "",
+    range: headerRowIndex, // dynamic header row here
+  }) as Record<string, any>[];
+
+  if (!raw || raw.length === 0) {
+    throw new Error("Empty or unreadable file");
+  }
+
+  // 🧹 Normalize keys → lowercase trimmed
   const rows = raw.map((r) => {
-    // Convert keys to lower-case trimmed keys
     const mapped: Record<string, string> = {};
     for (const k of Object.keys(r)) {
       mapped[k.toLowerCase().trim()] = normalize(r[k]);
@@ -56,9 +92,9 @@ const parseCompaniesExcel = async (file: File) => {
     return mapped;
   });
 
-  // Return parsed rows
   return rows;
 };
+
 
 const BulkUploadCompaniesModal: React.FC<Props> = ({ isOpen, onClose, onUpload }) => {
   const [file, setFile] = useState<File | null>(null);
