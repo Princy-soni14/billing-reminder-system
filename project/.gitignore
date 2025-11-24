@@ -33,3 +33,4 @@ firebase-service-account.json
 
 # local-only server
 server.js
+initadmin.js
