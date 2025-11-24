@@ -1,57 +1,51 @@
 import admin from "firebase-admin";
 import cors from "cors";
+
 // ========== INIT FIREBASE ADMIN (VERCEL) ==========
-let initialized = false;
+// Use a global variable to cache the instance across invocations
+if (!admin.apps.length) {
+  try {
+    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-function initAdmin() {
-  if (initialized) return;
+    if (!serviceAccountString) {
+      throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
+    }
 
-  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
+    const serviceAccount = JSON.parse(serviceAccountString);
 
-  if (!serviceAccountString) {
-    console.error("❌ FIREBASE_SERVICE_ACCOUNT is missing.");
-    throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
+    // 🚀 CRITICAL FIX: Handle newlines in private key
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log("✅ Firebase Admin Initialized");
+  } catch (error) {
+    console.error("❌ Firebase Admin Init Error:", error.message);
+    // We don't throw here to allow the function to attempt to return a 500 error with details if possible
   }
-
-  // Parse the string into an object
-  const serviceAccount = JSON.parse(serviceAccountString);
-
-  // 🚀 FIX: Replace literal '\n' with actual newlines in the private key
-  // This is the critical fix for "Invalid PEM formatted message"
-  if (serviceAccount.private_key) {
-    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-  }
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  initialized = true;
 }
 
-initAdmin();
-
 // ========= CORS HANDLER (Vercel Compatible) =========
+const corsMiddleware = cors({
+  methods: ["POST", "OPTIONS"],
+  origin: true, // Allow all origins for now to debug, or specify your Vercel URL
+});
+
 function runCors(req, res) {
   return new Promise((resolve, reject) => {
-    cors({
-  origin: [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "https://billing-reminder-system.vercel.app"
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-})
-(req, res, (result) => {
-      if (result instanceof Error) reject(result);
-      resolve(result);
+    corsMiddleware(req, res, (result) => {
+      if (result instanceof Error) {
+        return reject(result);
+      }
+      return resolve(result);
     });
   });
 }
 
-// ========== AUTH + ADMIN CHECK (Updated for Debugging) ==========
+// ========== AUTH + ADMIN CHECK ==========
 async function checkAuthAndAdmin(req) {
   const authHeader = req.headers.authorization;
 
@@ -65,23 +59,20 @@ async function checkAuthAndAdmin(req) {
     const decoded = await admin.auth().verifyIdToken(idToken);
 
     if (decoded.role !== "admin") {
-      console.error(`User ${decoded.email} is NOT admin. Role: ${decoded.role}`);
       throw { status: 403, message: "Forbidden: Admin access required." };
     }
 
     return decoded;
 
   } catch (err) {
-    // 🚀 THIS IS THE FIX: Log the actual error so we know WHY it failed
-    console.error("💥 Auth Verification Failed:", err.code, err.message);
-    
-    // Send the specific error message back to the frontend
+    console.error("Token Verification Failed:", err);
     throw { status: 401, message: `Unauthorized: ${err.message}` };
   }
 }
 
 // ========== MAIN HANDLER FOR VERCEL ==========
 export default async function handler(req, res) {
+  // Run CORS first
   await runCors(req, res);
 
   if (req.method !== "POST") {
@@ -89,6 +80,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Ensure Admin SDK is ready
+    if (!admin.apps.length) {
+        throw new Error("Firebase Admin failed to initialize. Check server logs.");
+    }
+
     // Check admin access
     const adminUser = await checkAuthAndAdmin(req);
 
@@ -118,10 +114,9 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error("💥 Create user error:", err.message || err);
-
-    return res.status(err.status || 500).json({
-      error: err.message || "Failed to create user",
-    });
+    console.error("💥 API Error:", err.message || err);
+    const status = err.status || 500;
+    const message = err.message || "Internal Server Error";
+    return res.status(status).json({ error: message });
   }
 }
