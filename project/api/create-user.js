@@ -45,7 +45,7 @@ function runCors(req, res) {
   });
 }
 
-// ========== AUTH + ADMIN CHECK (from your server.js) ==========
+// ========== AUTH + ADMIN CHECK (Updated for Debugging) ==========
 async function checkAuthAndAdmin(req) {
   const authHeader = req.headers.authorization;
 
@@ -59,13 +59,18 @@ async function checkAuthAndAdmin(req) {
     const decoded = await admin.auth().verifyIdToken(idToken);
 
     if (decoded.role !== "admin") {
+      console.error(`User ${decoded.email} is NOT admin. Role: ${decoded.role}`);
       throw { status: 403, message: "Forbidden: Admin access required." };
     }
 
     return decoded;
 
   } catch (err) {
-    throw { status: 401, message: "Unauthorized: Invalid token." };
+    // 🚀 THIS IS THE FIX: Log the actual error so we know WHY it failed
+    console.error("💥 Auth Verification Failed:", err.code, err.message);
+    
+    // Send the specific error message back to the frontend
+    throw { status: 401, message: `Unauthorized: ${err.message}` };
   }
 }
 
