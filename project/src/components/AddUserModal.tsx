@@ -1,29 +1,18 @@
 import { useState, FormEvent } from "react";
-import { X } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { X, Loader2 } from "lucide-react";
+// 🚀 FIXED: Explicit import path with .tsx extension
+import { useAuth } from "../contexts/AuthContext.tsx";
 
-// ============================================================================
-// ⚠️ IMPORTANT: UNCOMMENT THE LINE BELOW IN YOUR REAL PROJECT
-// import { useAuth } from "../contexts/AuthContext";
-// ============================================================================
+// 🚀 FIXED: Simplified environment check to satisfy the build tool
+const API_BASE_URL = import.meta.env.MODE === 'production' ? "" : "http://localhost:5174";
 
-// ============================================================================
-// ⚠️ TEMPORARY MOCK (DELETE THIS SECTION IN YOUR REAL PROJECT)
-// This is only here so the preview works in this chat window.
-const useAuth = () => ({
-  user: {
-    getIdToken: async (forceRefresh?: boolean) => "mock-token-for-preview",
-    email: "admin@company.com"
-  }
-});
-// ============================================================================
-
-// Define the props for the modal
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Simple Loading Spinner
+// Your Custom Spinner Component
 const Spinner = () => (
   <svg
     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -57,15 +46,14 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // ✅ Get the real logged-in admin user from your Context
-  const { user: adminUser } = useAuth(); 
+  // ✅ Get the real logged-in user
+  const { user } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    // ✅ Ensure we have a real admin user logged in
-    if (!adminUser) {
-      setError("Admin user not found. Please re-login.");
+
+    if (!user) {
+      setError("You must be logged in to perform this action.");
       return;
     }
 
@@ -74,32 +62,30 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
     setSuccess(null);
 
     try {
-      // 1. Get the admin's FRESH auth token (Real Security)
-      // We force refresh to ensure the token isn't expired
-      const token = await adminUser.getIdToken(true); 
+      // 1. Get a FRESH token (Force refresh to avoid 401 errors)
+      const token = await user.getIdToken(true);
+      console.log("Sending fresh token...");
 
-      // 2. Call Backend API
-      // Fix for Vercel: default to empty string if env var is missing
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-      
-      const response = await fetch(`${baseUrl}/api/create-user`, {
+      // 2. Call the Backend API
+      const response = await fetch(`${API_BASE_URL}/api/create-user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Send the REAL token
+          "Authorization": `Bearer ${token}`, // ✅ Strict Bearer format
         },
         body: JSON.stringify({ name, email, password, role }),
       });
 
-      // Handle non-JSON responses (like Vercel 404/500 HTML pages)
+      // Handle response
       const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        // Fallback for non-JSON errors (like Vercel 500s)
         const text = await response.text();
-        console.error("Non-JSON response:", text);
-        throw new Error("Server Error: API returned HTML instead of JSON. Check Vercel logs.");
+        throw new Error(`Server Error: ${text}`);
       }
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to create user.");
@@ -107,12 +93,14 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
 
       // 3. Success!
       setSuccess(`User "${data.email}" created successfully!`);
+      
+      // Reset form
       setName("");
       setEmail("");
       setPassword("");
       setRole("user");
 
-      // Close modal after delay
+      // Close after a short delay so user sees the success message
       setTimeout(() => {
         onClose();
         setSuccess(null);
@@ -120,7 +108,7 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
       }, 2000);
 
     } catch (err: any) {
-      console.error(err);
+      console.error("Create User Error:", err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -220,25 +208,3 @@ export const AddUserModal = ({ isOpen, onClose }: AddUserModalProps) => {
     </div>
   );
 };
-
-// ============================================================================
-// ✅ PREVIEW WRAPPER (This makes the preview work)
-// ============================================================================
-export default function App() {
-  const [isOpen, setIsOpen] = useState(true);
-
-  return (
-    <div className="flex h-screen w-full items-center justify-center bg-gray-100 p-10">
-      <div className="text-center">
-        <h1 className="mb-4 text-2xl font-bold">Add User Modal Preview</h1>
-        <button
-          onClick={() => setIsOpen(true)}
-          className="rounded-md bg-blue-600 px-6 py-3 text-white shadow-sm hover:bg-blue-700"
-        >
-          Open Modal
-        </button>
-      </div>
-      <AddUserModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
-    </div>
-  );
-}
