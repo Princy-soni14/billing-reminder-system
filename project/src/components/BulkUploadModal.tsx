@@ -92,12 +92,16 @@ const parseExcel = async (file: File) => {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-  // Helpers
+  if (!rows || rows.length === 0) throw new Error("Empty or unreadable file");
+
+  // Convert Excel serial to JS date
   const excelDateToJSDate = (serial: number) => {
     const utc_days = Math.floor(serial - 25569);
     return new Date(utc_days * 86400 * 1000);
   };
+
   const normalizeCell = (c: any) => {
     if (typeof c === "number" && c > 40000 && c < 50000) {
       const dt = excelDateToJSDate(c);
@@ -109,143 +113,71 @@ const parseExcel = async (file: File) => {
     if (typeof c === "number") return c.toString();
     return String(c || "").replace(/[\u00A0]/g, " ").replace(/\s+/g, " ").trim();
   };
+  
+  // FIXED: Handles YYYY-MM-DD strings (from your CSV) and DD/MM/YYYY (from serial conversion)
+  const looksLikeDate = (c: any) => {
+    if (typeof c === "number" && c > 40000 && c < 50000) return true;
+    const str = normalizeCell(c);
+    return /^\d{2}\/\d{2}\/\d{4}$/.test(str) || /^\d{4}-\d{2}-\d{2}$/.test(str);
+  };
+  
+  const looksLikeAmount = (c: any) => /DB|CR/i.test(normalizeCell(c));
+  
   const parseAmt = (amt: any) =>
-    parseFloat(normalizeCell(amt).replace(/[^0-9.\-]/g, "")) || 0;
+    parseFloat(normalizeCell(amt).replace(/[^0-9.]/g, "")) || 0;
 
-  // Read as 2D first (header detection)
-  const sheetRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-
-  if (!sheetRows || sheetRows.length === 0) throw new Error("Empty or unreadable file");
-
-  // --- Detect whether sheet is tabular (Format A) ---
-  // Look for header row among first 20 rows
-  const headerCandidates = ["company name", "bill no", "bill amount", "pending amount", "due days", "invoice no", "bill date"];
-  let headerRowIndex = -1;
-  let headerRow: string[] = [];
-
-  for (let i = 0; i < Math.min(20, sheetRows.length); i++) {
-    const row = sheetRows[i].map((c: any) => String(c).toLowerCase().trim());
-    const matches = headerCandidates.filter(h => row.includes(h));
-    if (matches.length >= 1) {
-      headerRowIndex = i;
-      headerRow = sheetRows[i].map((c: any) => String(c || "").trim());
-      break;
-    }
-  }
-
-  // If headerRowIndex found -> parse tabular (Format A)
-  if (headerRowIndex !== -1) {
-    // Read using headerRowIndex as range so XLSX uses that row as keys
-    const raw = XLSX.utils.sheet_to_json(ws, { defval: "", range: headerRowIndex }) as Record<string, any>[];
-    if (!raw || raw.length === 0) throw new Error("No rows found in tabular file");
-
-    const mappedRows: any[] = [];
-    for (const r of raw) {
-      // Normalize keys -> lower-case trimmed
-      const row: Record<string, any> = {};
-      for (const k of Object.keys(r)) {
-        const key = String(k).toLowerCase().trim();
-        row[key] = r[k];
-      }
-
-      // Map to DB fields using COLUMN_MAPPING
-      const mapped: any = {};
-      for (const colKey of Object.keys(row)) {
-        const mappedKey = COLUMN_MAPPING[colKey] || colKey; // fallback to raw
-        mapped[mappedKey] = row[colKey];
-      }
-
-      // Normalize some fields
-      const companyName = (mapped.companyName || mapped["company"] || mapped["name"] || "").toString().trim();
-      if (!companyName) continue; // skip rows without company
-
-      // date: try to normalize
-      let dateRaw = mapped.date || mapped["bill date"] || mapped["bill date (dd/mm/yyyy)"] || "";
-      dateRaw = normalizeCell(dateRaw);
-
-      const billAmount = parseAmt(mapped.billAmount || mapped["bill amount"]);
-      const pendingAmount = parseAmt(mapped.pendingAmount || mapped["pending amount"] || billAmount);
-      const dueDays = Number(mapped.dueDays || mapped["due days"] || 0) || 0;
-
-      mappedRows.push({
-        companyName,
-        address: mapped.address || mapped["address"] || "",
-        billNo: (mapped.billNo || mapped["bill no"] || mapped["invoice no"] || "").toString().trim(),
-        date: dateRaw,
-        billAmount,
-        pendingAmount,
-        balanceAmount: mapped.balanceAmount || pendingAmount,
-        dueDays,
-        poNo: mapped.poNo || mapped["po no"] || "",
-        type: mapped.type || "",
-        raw: mapped,
-      });
-    }
-
-    if (mappedRows.length === 0) throw new Error("No usable rows found in tabular file");
-    console.log("Detected tabular format. Rows parsed:", mappedRows.length);
-    return mappedRows;
-  }
-
-  // --- FALLBACK: Format B (company blocks with inline bill lines) ---
-  // Use your original block parsing logic (kept mostly intact)
-
-  // find start index similar to previous logic — detect first meaningful row
+  // Skip header rows
   let startIndex = 0;
-  for (let i = 0; i < sheetRows.length; i++) {
-    const text = sheetRows[i].join(" ").toLowerCase();
+  for (let i = 0; i < rows.length; i++) {
+    const text = rows[i].join(" ").toLowerCase();
     if (text.includes("bill no") && (text.includes("due") || text.includes("bill amount"))) {
       startIndex = i + 1;
       break;
     }
   }
 
+  // --- NEW PARSING LOGIC ---
   const result: any[] = [];
   let currentCompany = "";
   let pendingAddress: string[] = [];
   let bills: any[] = [];
-  let inBillSection = false;
+  let inBillSection = false; // State to track if we are in a bill block
 
   const pushCompany = () => {
     if (currentCompany && bills.length > 0) {
       result.push({
         companyName: currentCompany.trim(),
-        address: pendingAddress.join(" ").trim(),
+        address: pendingAddress.join(" "),
         bills: [...bills],
       });
     }
+    // Reset for next company
     currentCompany = "";
     pendingAddress = [];
     bills = [];
     inBillSection = false;
   };
 
-  for (let i = startIndex; i < sheetRows.length; i++) {
-    const row = sheetRows[i];
+  for (let i = startIndex; i < rows.length; i++) {
+    const row = rows[i];
     if (!row || row.length === 0) continue;
 
     const first = normalizeCell(row[0]);
     if (!first) continue;
 
-    // heuristics for bill line: first cell looks like date OR numeric serial AND row contains amount-like cell
-    const looksLikeDate = (c: any) => {
-      if (typeof c === "number" && c > 40000 && c < 50000) return true;
-      const s = normalizeCell(c);
-      return /^\d{2}\/\d{2}\/\d{4}$/.test(s) || /^\d{4}-\d{2}-\d{2}$/.test(s);
-    };
-    const looksLikeAmountCell = (c: any) => /[0-9,\.\-]/.test(normalizeCell(c)) && normalizeCell(c).length > 0;
-
-    const isBillLine = looksLikeDate(first) && row.some((c) => looksLikeAmountCell(c));
+    const isBillLine = looksLikeDate(first) && row.some((c) => looksLikeAmount(c));
 
     if (isBillLine) {
       if (currentCompany) {
+        // We are in a bill section
         inBillSection = true;
+
         const date = normalizeCell(row[0]);
         const billNo = normalizeCell(row[1]);
         const poNo = normalizeCell(row[2]);
         const type = normalizeCell(row[3]);
         const dueDays = parseInt(normalizeCell(row[4])) || 0;
-
+        
         const billAmount = parseAmt(row[5]);
         const adjAmount = parseAmt(row[6]);
         const pendingAmount = parseAmt(row[7]) || billAmount;
@@ -261,22 +193,29 @@ const parseExcel = async (file: File) => {
           pendingAmount,
         });
       }
-      // else ignore bill line before company
+      // else: bill line found before any company, ignore it
     } else {
-      // treat as text line
+      // Not a bill line, check if it's text
+      // Updated regex to allow numbers (for phone/pincode) and quotes
       const isTextLine =
-        first.length > 2 &&
-        !/total|balance|report|date|due/i.test(first);
+        !looksLikeAmount(first) &&
+        first.length > 3 &&
+        !/total|balance|report|date|due/i.test(first) &&
+        /^[A-Za-z0-9\s\.\-&/(),"]+$/.test(first);
 
       if (isTextLine) {
         if (inBillSection) {
-          // new company starts
-          pushCompany();
-          currentCompany = first;
+          // We were processing bills, and now we see text.
+          // This MUST be a new company.
+          pushCompany(); // Save the previous company
+          currentCompany = first; // This is the new company name
         } else {
+          // We are not in a bill section yet
           if (!currentCompany) {
+            // This is the first line of text, so it's the company name
             currentCompany = first;
           } else {
+            // We already have a company name, so this is an address line
             pendingAddress.push(first);
           }
         }
@@ -284,11 +223,12 @@ const parseExcel = async (file: File) => {
     }
   }
 
+  // Push the very last company
   pushCompany();
 
-  if (result.length === 0) throw new Error("No company or bill sections detected (fallback)");
+  if (result.length === 0) throw new Error("No company or bill sections detected");
 
-  // Flatten
+  // Flatten bills for Firestore upload
   const flatBills: any[] = [];
   for (const comp of result) {
     for (const bill of comp.bills) {
@@ -300,7 +240,8 @@ const parseExcel = async (file: File) => {
     }
   }
 
-  console.log("Detected block format. Companies:", result.map(r => r.companyName).length, "Total bills:", flatBills.length);
+  console.log("✅ Parsed companies:", result.map((r) => r.companyName));
+  console.log("✅ Total bills parsed:", flatBills.length);
   return flatBills;
 };
 
